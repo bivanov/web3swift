@@ -109,7 +109,7 @@ public class EthereumKeystoreV3: AbstractKeystore {
         try encryptDataToStorage(password, keyData: privateKey)
     }
     
-    fileprivate func encryptDataToStorage(_ password: String, keyData: Data?, dkLen: Int=32, N: Int = 4096, R: Int = 6, P: Int = 1) throws {
+    fileprivate func encryptDataToStorage(_ password: String, keyData: Data?, dkLen: Int=32, N: Int = 4096, R: Int = 8, P: Int = 6) throws {
         if (keyData == nil) {
             throw AbstractKeystoreError.encryptionError("Encryption without key data")
         }
@@ -119,7 +119,7 @@ public class EthereumKeystoreV3: AbstractKeystore {
         let last16bytes = derivedKey[(derivedKey.count - 16)...(derivedKey.count-1)]
         let encryptionKey = derivedKey[0...15]
         guard let IV = Data.randomBytes(length: 16) else {throw AbstractKeystoreError.noEntropyError}
-        let aecCipher = try? AES(key: encryptionKey.bytes, blockMode: .CBC(iv: IV.bytes), padding: .noPadding)
+        let aecCipher = try? AES(key: encryptionKey.bytes, blockMode: .CTR(iv: IV.bytes), padding: .noPadding)
         guard let encryptedKey = try aecCipher?.encrypt(keyData!.bytes) else {throw AbstractKeystoreError.aesError}
         let encryptedKeyData = Data(bytes:encryptedKey)
         var dataForMAC = Data()
@@ -128,7 +128,7 @@ public class EthereumKeystoreV3: AbstractKeystore {
         let mac = dataForMAC.sha3(.keccak256)
         let kdfparams = KdfParamsV3(salt: saltData.toHexString(), dklen: dkLen, n: N, p: P, r: R, c: nil, prf: nil)
         let cipherparams = CipherParamsV3(iv: IV.toHexString())
-        let crypto = CryptoParamsV3(ciphertext: encryptedKeyData.toHexString(), cipher: "aes-128-cbc", cipherparams: cipherparams, kdf: "scrypt", kdfparams: kdfparams, mac: mac.toHexString(), version: nil)
+        let crypto = CryptoParamsV3(ciphertext: encryptedKeyData.toHexString(), cipher: "aes-128-ctr", cipherparams: cipherparams, kdf: "scrypt", kdfparams: kdfparams, mac: mac.toHexString(), version: nil)
         guard let pubKey = Web3.Utils.privateToPublic(keyData!) else {throw AbstractKeystoreError.keyDerivationError}
         guard let addr = Web3.Utils.publicToAddress(pubKey) else {throw AbstractKeystoreError.keyDerivationError}
         self.address = addr
